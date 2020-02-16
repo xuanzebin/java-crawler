@@ -17,7 +17,6 @@ public class Main {
             System.out.println(response1.getStatusLine());
             HttpEntity entity1 = response1.getEntity();
             System.out.println(EntityUtils.toString(entity1));
-            System.out.println("test");
         }
     }
 }
