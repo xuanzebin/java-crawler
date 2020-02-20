@@ -14,10 +14,7 @@ import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class Main {
     private static final String USER_NAME = "root";
@@ -29,14 +26,13 @@ public class Main {
             Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/xuanzebin3/Desktop/repos-java/java-crawler/crawler", USER_NAME, PASSWORD);
 
             List<String> linkPool = getLinksFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
-            Set<String> completedPool = new HashSet<>(getLinksFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
 
             String link = linkPool.remove(0);
             deleteProcessedLink(connection, link);
 
             link = handleTheLink(link);
 
-            if (checkLinkIsUsefulOrNot(link, completedPool)) {
+            if (checkLinkIsUsefulOrNot(link, connection)) {
                 Document html = getTheHtmlAndParseIt(link);
 
                 findTheHrefFromATagsAndInsertIntoDatabase(connection, linkPool, html);
@@ -44,6 +40,22 @@ public class Main {
                 getArticles(html);
             }
         }
+    }
+
+    private static boolean isTheLinkAlreadyProcessed(Connection connection, String link) throws SQLException {
+        ResultSet resultSet = null;
+        try (PreparedStatement preparedStatement = connection.prepareStatement("select link from LINKS_ALREADY_PROCESSED where link = ?")) {
+            preparedStatement.setString(1, link);
+            resultSet = preparedStatement.executeQuery();
+            while (resultSet.next()) {
+                return true;
+            }
+        } finally {
+            if (resultSet != null) {
+                resultSet.close();
+            }
+        }
+        return false;
     }
 
     private static void deleteProcessedLink(Connection connection, String link) throws SQLException {
@@ -73,9 +85,9 @@ public class Main {
         }
     }
 
-    private static boolean checkLinkIsUsefulOrNot(String link, Set<String> completedPool) {
+    private static boolean checkLinkIsUsefulOrNot(String link, Connection connection) throws SQLException {
         boolean isValuableLink = link.contains("news.sina.cn") || link.contains("https://sina.cn");
-        boolean isRepeat = completedPool.contains(link);
+        boolean isRepeat = isTheLinkAlreadyProcessed(connection, link);
         return isValuableLink && !isRepeat;
     }
 
