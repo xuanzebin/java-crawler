@@ -1,5 +1,6 @@
 package com.github.hcsp;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -8,32 +9,86 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
-        List<String> linkPool = new ArrayList<>();
-        Set<String> completedPool = new HashSet<>();
-        linkPool.add("https://sina.cn/");
-        while (true) {
-            String link = handleTheLink(linkPool.remove(0));
-            boolean isValuableLink = link.contains("news.sina.cn") || link.contains("https://sina.cn");
-            boolean isRepeat = completedPool.contains(link);
+    private static final String USER_NAME = "root";
+    private static final String PASSWORD = "root";
 
-            if (isValuableLink && !isRepeat) {
+    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
+    public static void main(String[] args) throws IOException, SQLException {
+        while (true) {
+            Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/xuanzebin3/Desktop/repos-java/java-crawler/crawler", USER_NAME, PASSWORD);
+
+            List<String> linkPool = getLinksFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+            Set<String> completedPool = new HashSet<>(getLinksFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+
+            String link = linkPool.remove(0);
+            deleteProcessedLink(connection, link);
+
+            link = handleTheLink(link);
+
+            if (checkLinkIsUsefulOrNot(link, completedPool)) {
                 Document html = getTheHtmlAndParseIt(link);
-                Elements aTags = html.select("a");
-                aTags.stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
-                completedPool.add(link);
+
+                findTheHrefFromATagsAndInsertIntoDatabase(connection, linkPool, html);
+                InsertAlreadyProcessedLinkIntoDatabase(connection, link);
                 getArticles(html);
             }
         }
+    }
+
+    private static void deleteProcessedLink(Connection connection, String link) throws SQLException {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("delete from LINKS_TO_BE_PROCESSED where link = ?")) {
+            preparedStatement.setString(1, link);
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    private static void InsertAlreadyProcessedLinkIntoDatabase(Connection connection, String link) throws SQLException {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("insert into LINKS_ALREADY_PROCESSED (link) values (?)")) {
+            preparedStatement.setString(1, link);
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    private static void findTheHrefFromATagsAndInsertIntoDatabase(Connection connection, List<String> linkPool, Document html) throws SQLException {
+        Elements aTags = html.select("a");
+        for (Element aTag : aTags) {
+            String href = aTag.attr("href");
+            linkPool.add(href);
+            try (PreparedStatement preparedStatement = connection.prepareStatement("insert into LINKS_TO_BE_PROCESSED (link) values (?)")) {
+                preparedStatement.setString(1, href);
+                preparedStatement.executeUpdate();
+            }
+
+        }
+    }
+
+    private static boolean checkLinkIsUsefulOrNot(String link, Set<String> completedPool) {
+        boolean isValuableLink = link.contains("news.sina.cn") || link.contains("https://sina.cn");
+        boolean isRepeat = completedPool.contains(link);
+        return isValuableLink && !isRepeat;
+    }
+
+    private static List<String> getLinksFromDatabase(Connection connection, String sql) throws SQLException {
+        List<String> linkPool = new ArrayList<>();
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
+             ResultSet resultSet = preparedStatement.executeQuery()
+        ) {
+            while (resultSet.next()) {
+                linkPool.add(resultSet.getString(1));
+            }
+        }
+        return linkPool;
     }
 
     public static void getArticles(Document html) {
@@ -56,9 +111,7 @@ public class Main {
     }
 
     public static String handleTheLink(String link) {
-        if (link.contains("\\")) {
-            link = link.replaceAll("\\\\", "");
-        }
+        link = link.replaceAll("\\\\", "");
         if (link.startsWith("//")) {
             link += "https:";
         }
