@@ -22,20 +22,15 @@ public class Main {
 
     @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
-        while (true) {
-            Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/xuanzebin3/Desktop/repos-java/java-crawler/crawler", USER_NAME, PASSWORD);
-
-            List<String> linkPool = getLinksFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
-
-            String link = linkPool.remove(0);
-            deleteProcessedLink(connection, link);
-
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/xuanzebin3/Desktop/repos-java/java-crawler/crawler", USER_NAME, PASSWORD);
+        String link;
+        while ((link = getLinkAndDeleteItFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED LIMIT 1")) != null) {
             link = handleTheLink(link);
 
             if (checkLinkIsUsefulOrNot(link, connection)) {
                 Document html = getTheHtmlAndParseIt(link);
 
-                findTheHrefFromATagsAndInsertIntoDatabase(connection, linkPool, html);
+                findTheHrefFromATagsAndInsertIntoDatabase(connection, html);
                 InsertAlreadyProcessedLinkIntoDatabase(connection, link);
                 getArticles(html);
             }
@@ -72,11 +67,10 @@ public class Main {
         }
     }
 
-    private static void findTheHrefFromATagsAndInsertIntoDatabase(Connection connection, List<String> linkPool, Document html) throws SQLException {
+    private static void findTheHrefFromATagsAndInsertIntoDatabase(Connection connection, Document html) throws SQLException {
         Elements aTags = html.select("a");
         for (Element aTag : aTags) {
             String href = aTag.attr("href");
-            linkPool.add(href);
             try (PreparedStatement preparedStatement = connection.prepareStatement("insert into LINKS_TO_BE_PROCESSED (link) values (?)")) {
                 preparedStatement.setString(1, href);
                 preparedStatement.executeUpdate();
@@ -91,16 +85,24 @@ public class Main {
         return isValuableLink && !isRepeat;
     }
 
-    private static List<String> getLinksFromDatabase(Connection connection, String sql) throws SQLException {
-        List<String> linkPool = new ArrayList<>();
+    private static String getLinkAndDeleteItFromDatabase(Connection connection, String sql) throws SQLException {
+        String link = getLinkFromDatabase(connection, sql);
+        if (link != null) {
+            deleteProcessedLink(connection, link);
+            return link;
+        }
+        return null;
+    }
+
+    private static String getLinkFromDatabase(Connection connection, String sql) throws SQLException {
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
              ResultSet resultSet = preparedStatement.executeQuery()
         ) {
             while (resultSet.next()) {
-                linkPool.add(resultSet.getString(1));
+                return resultSet.getString(1);
             }
         }
-        return linkPool;
+        return null;
     }
 
     public static void getArticles(Document html) {
