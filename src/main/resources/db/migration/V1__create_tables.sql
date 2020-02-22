@@ -8,5 +8,5 @@ link varchar(2000),
 title text,
 content text,
 created_at timestamp default now(),
-update_at timestamp default now()
+updated_at timestamp default now()
 );

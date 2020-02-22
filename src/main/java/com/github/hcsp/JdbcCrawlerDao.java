@@ -76,7 +76,7 @@ public class JdbcCrawlerDao implements CrawlerDao {
     }
 
     public void updateNewsToDatabase(String link, String title, String content) throws SQLException {
-        try (PreparedStatement preparedStatement = connection.prepareStatement("insert into NEWS (link, title, content, created_at, update_at) VALUES (?,?,?, now(), now())")) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("insert into NEWS (link, title, content, created_at, updated_at) VALUES (?,?,?, now(), now())")) {
             preparedStatement.setString(1, link);
             preparedStatement.setString(2, title);
             preparedStatement.setString(3, content);

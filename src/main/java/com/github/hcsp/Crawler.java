@@ -15,23 +15,28 @@ import java.io.IOException;
 import java.sql.*;
 import java.util.stream.Collectors;
 
-public class Crawler {
-    private final CrawlerDao dao = new MyBatisCrawlerDao();
+public class Crawler extends Thread {
+    private final CrawlerDao dao;
 
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
     }
 
-    private void run() throws SQLException, IOException {
-        String link;
-        while ((link = dao.getLinkAndDeleteItFromDatabase()) != null) {
-            if (checkLinkIsUsefulOrNot(link)) {
-                Document html = getTheHtmlAndParseIt(link);
+    @Override
+    public void run() {
+        try {
+            String link;
+            while ((link = dao.getLinkAndDeleteItFromDatabase()) != null) {
+                if (checkLinkIsUsefulOrNot(link)) {
+                    Document html = getTheHtmlAndParseIt(link);
 
-                findTheHrefFromATagsAndInsertIntoDatabase(html);
-                dao.insertAlreadyProcessedLinkIntoDatabase(link);
-                getArticles(html, link);
+                    findTheHrefFromATagsAndInsertIntoDatabase(html);
+                    dao.insertAlreadyProcessedLinkIntoDatabase(link);
+                    getArticles(html, link);
+                }
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -43,6 +48,7 @@ public class Crawler {
                 continue;
             }
             href = href.replaceAll("\\\\", "");
+            href = href.replaceAll("\\|", "%7C");
             if (href.startsWith("//")) {
                 href += "https:";
             }
