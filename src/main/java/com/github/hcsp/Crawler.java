@@ -1,6 +1,5 @@
 package com.github.hcsp;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -17,16 +16,15 @@ import java.sql.*;
 import java.util.stream.Collectors;
 
 public class Crawler {
-    private final JdbcCrawlerDao dao = new JdbcCrawlerDao();
+    private final CrawlerDao dao = new MyBatisCrawlerDao();
 
-    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
         new Crawler().run();
     }
 
     private void run() throws SQLException, IOException {
         String link;
-        while ((link = getLinkAndDeleteItFromDatabase("select link from LINKS_TO_BE_PROCESSED LIMIT 1")) != null) {
+        while ((link = dao.getLinkAndDeleteItFromDatabase()) != null) {
             if (checkLinkIsUsefulOrNot(link)) {
                 Document html = getTheHtmlAndParseIt(link);
 
@@ -56,15 +54,6 @@ public class Crawler {
         boolean isValuableLink = link.contains("news.sina.cn") || link.contains("https://sina.cn");
         boolean isRepeat = dao.isTheLinkAlreadyProcessed(link);
         return isValuableLink && !isRepeat;
-    }
-
-    private String getLinkAndDeleteItFromDatabase(String sql) throws SQLException {
-        String link = dao.getLinkFromDatabase(sql);
-        if (link != null) {
-            dao.deleteProcessedLink(link);
-            return link;
-        }
-        return null;
     }
 
     public void getArticles(Document html, String link) throws SQLException {

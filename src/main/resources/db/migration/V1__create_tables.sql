@@ -7,6 +7,6 @@ id bigint primary key auto_increment,
 link varchar(2000),
 title text,
 content text,
-created_at timestamp,
-update_at timestamp
+created_at timestamp default now(),
+update_at timestamp default now()
 );

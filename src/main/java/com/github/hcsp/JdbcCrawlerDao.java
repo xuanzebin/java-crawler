@@ -1,10 +1,13 @@
 package com.github.hcsp;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.sql.*;
 
 public class JdbcCrawlerDao implements CrawlerDao {
     private Connection connection;
 
+    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public JdbcCrawlerDao() {
         String PASSWORD = "root";
         String USER_NAME = "root";
@@ -13,6 +16,15 @@ public class JdbcCrawlerDao implements CrawlerDao {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String getLinkAndDeleteItFromDatabase() throws SQLException {
+        String link = getLinkFromDatabase();
+        if (link != null) {
+            deleteProcessedLink(link);
+            return link;
+        }
+        return null;
     }
 
     public boolean isTheLinkAlreadyProcessed(String link) throws SQLException {
@@ -52,8 +64,8 @@ public class JdbcCrawlerDao implements CrawlerDao {
         }
     }
 
-    public String getLinkFromDatabase(String sql) throws SQLException {
-        try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
+    public String getLinkFromDatabase() throws SQLException {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("select link from LINKS_TO_BE_PROCESSED LIMIT 1");
              ResultSet resultSet = preparedStatement.executeQuery()
         ) {
             while (resultSet.next()) {
