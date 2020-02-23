@@ -1,6 +1,7 @@
 package com.github.hcsp;
 
 import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
@@ -11,7 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
-public class MockData {
+public class MockDataGenerator {
     public static void main(String[] args) {
         String resource = "db/mybatis/config.xml";
         InputStream inputStream = null;
@@ -22,11 +23,11 @@ public class MockData {
         }
         SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
 
-        mockLotsOfDataIntoDatabase(sqlSessionFactory, 100_0000);
+        mockLotsOfDataIntoDatabase(sqlSessionFactory, 2000);
     }
 
     private static void mockLotsOfDataIntoDatabase(SqlSessionFactory sqlSessionFactory, int number) {
-        try (SqlSession sqlSession = sqlSessionFactory.openSession()) {
+        try (SqlSession sqlSession = sqlSessionFactory.openSession(ExecutorType.BATCH)) { // 批处理模式
             List<News> news = sqlSession.selectList("com.github.hcsp.MockMapper.selectNews");
             int count = number - news.size();
             try {
